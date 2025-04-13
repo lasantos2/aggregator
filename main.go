@@ -3,12 +3,14 @@ package main
 import (
 	"fmt"
 	"log"
-	
+	"errors"
+	"os"
+
 	"github.com/lasantos2/aggregator/internal/config"
 )
 
 type state struct {
-	cfg *Config
+	cfg *config.Config
 }
 
 type command struct {
@@ -16,17 +18,43 @@ type command struct {
 	args []string
 }
 
-func handleLogin(s *state, cmd command) error {
-	if len(args) == 0 {
-		return error.NewError("Username Required")
+type commands struct {
+	commMap map[string]func(*state, command) error
+}
+
+func (c *commands) register(name string, f func(*state, command) error){
+	_, ok := c.commMap[name]
+	if ok { // command already exists
+		return
 	}
 
-	err := s.cfg.SetUser(args)
+	c.commMap[name] = f
+
+
+}
+
+func (c *commands) run(s *state, cmd command) error {
+
+	err := c.commMap[cmd.name](s, cmd)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func handleLogin(s *state, cmd command) error {
+	if len(cmd.args) == 0 {
+		return errors.New("Username Required")
+	}
+
+	err := s.cfg.SetUser(cmd.args[0])
 	if err != nil {
 		return err
 	}
 
 	fmt.Println("User has been set!")
+	return nil
 }
 
 func main() {
@@ -38,7 +66,34 @@ func main() {
 
 	fmt.Printf("Read config: %+v\n", cfg)
 
-	err = cfg.SetUser("Luis")
+	//err = cfg.SetUser("Luis")
+	stateInst := state{&cfg}
+	commandsInst := commands{make(map[string]func(*state, command) error)}
+
+	commandsInst.register("login", handleLogin)
+
+	args := os.Args
+
+	if len(args) < 2 {
+		fmt.Println("not enough arguments provided! Ex : gator {command} {args}")
+		os.Exit(1)
+	}
+
+	commandName := args[1]
+	commandArgs := args[2:]
+
+	commandInst := command{commandName, commandArgs}
+
+	err = commandsInst.run(&stateInst, commandInst)
+	if err != nil{
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	
+
+	fmt.Println(commandInst)
+
+	fmt.Println(stateInst)
 
 	cfg, err = config.Read()
 	if err != nil {
