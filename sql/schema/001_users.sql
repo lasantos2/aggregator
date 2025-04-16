@@ -1,8 +1,8 @@
 -- +goose Up
 CREATE TABLE users (
-id INTEGER PRIMARY KEY,
-created_at INTEGER NOT NULL,
-updated_at INTEGER NOT NULL,
+id uuid PRIMARY KEY,
+created_at TIMESTAMP NOT NULL,
+updated_at TIMESTAMP NOT NULL,
 name TEXT UNIQUE NOT NULL
 );
 

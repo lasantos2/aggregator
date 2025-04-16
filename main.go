@@ -3,11 +3,14 @@ import _ "github.com/lib/pq"
 import (
 	"fmt"
 	"log"
+	"context"
 	"errors"
+	"time"
 	"os"
 	"database/sql"
 	"github.com/lasantos2/aggregator/internal/database"
 	"github.com/lasantos2/aggregator/internal/config"
+	"github.com/google/uuid"
 )
 
 type state struct {
@@ -48,8 +51,9 @@ func handleLogin(s *state, cmd command) error {
 		return errors.New("Username Required")
 	}
 
-	err := s.cfg.SetUser(cmd.args[0])
+	_, err := s.db.GetUser(context.Background(), cmd.args[0])
 	if err != nil {
+		os.Exit(1)
 		return err
 	}
 
@@ -62,27 +66,63 @@ func handleRegister(s *state, cmd command) error {
 		return errors.New("Username Required")
 	}
 
-	err := s.cfg.SetUser(cmd.args[0])
+	
+	fmt.Println(cmd.args)
 
+	
+	Newuser := database.CreateUserParams{uuid.New(), time.Now(),time.Now(), cmd.args[0]}
 
-
+	_, err := s.db.CreateUser(context.Background(),Newuser)
 
 	if err != nil {
+		fmt.Println("User already exists")
 		return err
 	}
+	/*
+	type CreateUserParams struct {
+	ID        int32
+	CreatedAt int32
+	UpdatedAt int32
+	Name      string
+}
 
-	fmt.Println("User has been set!")
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, createUser,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.Name,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+	)
+	return i, err
+}
+
+	*/
+
+	// err := s.cfg.SetUser(cmd.args[0])
+	// if err != nil {
+	// 	return err
+	// }
+
+	// fmt.Println("User has been set!")
 	return nil
 }
 
 func main() {
 	cfg, err := config.Read()
+	dbURL := cfg.DBURL
 
 	if err != nil {
 		log.Fatalf("error reading config: %v", err)
 	}
 
-	db, err := sql.Open("postgres", cfg.dbURL)
+	db, err := sql.Open("postgres", dbURL)
 	dbQueries := database.New(db)
 	fmt.Printf("Read config: %+v\n", cfg)
 
@@ -91,6 +131,7 @@ func main() {
 	commandsInst := commands{make(map[string]func(*state, command) error)}
 
 	commandsInst.register("login", handleLogin)
+	commandsInst.register("register", handleRegister)
 
 	args := os.Args
 
@@ -109,11 +150,6 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	
-
-	fmt.Println(commandInst)
-
-	fmt.Println(stateInst)
 
 	cfg, err = config.Read()
 	if err != nil {
