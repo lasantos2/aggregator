@@ -51,7 +51,13 @@ func handleLogin(s *state, cmd command) error {
 		return errors.New("Username Required")
 	}
 
-	_, err := s.db.GetUser(context.Background(), cmd.args[0])
+	user, err := s.db.GetUser(context.Background(), cmd.args[0])
+	if err != nil {
+		os.Exit(1)
+		return err
+	}
+
+	err = s.cfg.SetUser(user.Name)
 	if err != nil {
 		os.Exit(1)
 		return err
@@ -66,10 +72,6 @@ func handleRegister(s *state, cmd command) error {
 		return errors.New("Username Required")
 	}
 
-	
-	fmt.Println(cmd.args)
-
-	
 	Newuser := database.CreateUserParams{uuid.New(), time.Now(),time.Now(), cmd.args[0]}
 
 	_, err := s.db.CreateUser(context.Background(),Newuser)
@@ -78,39 +80,12 @@ func handleRegister(s *state, cmd command) error {
 		fmt.Println("User already exists")
 		return err
 	}
-	/*
-	type CreateUserParams struct {
-	ID        int32
-	CreatedAt int32
-	UpdatedAt int32
-	Name      string
-}
+	err = s.cfg.SetUser(cmd.args[0])
+	if err != nil {
+		return err
+	}
 
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, createUser,
-		arg.ID,
-		arg.CreatedAt,
-		arg.UpdatedAt,
-		arg.Name,
-	)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Name,
-	)
-	return i, err
-}
-
-	*/
-
-	// err := s.cfg.SetUser(cmd.args[0])
-	// if err != nil {
-	// 	return err
-	// }
-
-	// fmt.Println("User has been set!")
+	//fmt.Println("User has been set!")
 	return nil
 }
 
@@ -124,9 +99,7 @@ func main() {
 
 	db, err := sql.Open("postgres", dbURL)
 	dbQueries := database.New(db)
-	fmt.Printf("Read config: %+v\n", cfg)
 
-	//err = cfg.SetUser("Luis")
 	stateInst := state{dbQueries, &cfg}
 	commandsInst := commands{make(map[string]func(*state, command) error)}
 
@@ -156,5 +129,5 @@ func main() {
 		log.Fatalf("error reading config: %v", err)
 	}
 
-	fmt.Printf("Read config again: %+v\n", cfg)
+	//fmt.Printf("Read config again: %+v\n", cfg)
 }
