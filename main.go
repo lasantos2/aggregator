@@ -46,6 +46,17 @@ func (c *commands) run(s *state, cmd command) error {
 	return nil
 }
 
+func handleReset(s *state, cmd command) error {
+	
+	err := s.db.Reset(context.Background())
+	if err != nil {
+		os.Exit(1)
+		return err
+	}
+
+	return nil
+}
+
 func handleLogin(s *state, cmd command) error {
 	if len(cmd.args) == 0 {
 		return errors.New("Username Required")
@@ -105,6 +116,7 @@ func main() {
 
 	commandsInst.register("login", handleLogin)
 	commandsInst.register("register", handleRegister)
+	commandsInst.register("reset", handleReset)
 
 	args := os.Args
 
