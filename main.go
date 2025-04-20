@@ -8,9 +8,13 @@ import (
 	"time"
 	"os"
 	"database/sql"
+	"io"
+	"net/http"
+	"encoding/xml"
 	"github.com/lasantos2/aggregator/internal/database"
 	"github.com/lasantos2/aggregator/internal/config"
 	"github.com/google/uuid"
+	"html"
 )
 
 type state struct {
@@ -25,6 +29,22 @@ type command struct {
 
 type commands struct {
 	commMap map[string]func(*state, command) error
+}
+
+type RSSFeed struct {
+	Channel struct {
+		Title       string    `xml:"title"`
+		Link        string    `xml:"link"`
+		Description string    `xml:"description"`
+		Item        []RSSItem `xml:"item"`
+	} `xml:"channel"`
+}
+
+type RSSItem struct {
+	Title       string `xml:"title"`
+	Link        string `xml:"link"`
+	Description string `xml:"description"`
+	PubDate     string `xml:"pubDate"`
 }
 
 func (c *commands) register(name string, f func(*state, command) error){
@@ -117,6 +137,122 @@ func handleUsers(s *state, cmd command) error {
 	return nil
 }
 
+
+func handleFeedGet(s *state, cmd command) error {
+
+	feedUrlString := "https://www.wagslane.dev/index.xml"
+	rssFeed, err := fetchFeed(context.Background(), feedUrlString)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(rssFeed)
+
+	return nil
+}
+
+func handleAddFeed(s *state, cmd command) error {
+	if len(cmd.args) != 2 {
+		os.Exit(1)
+		return errors.New("Arguments are [name] [url]")
+	}
+
+	feedname := cmd.args[0]
+	feedurl := cmd.args[1]
+
+	// get current user from database
+	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
+	if err != nil {
+		return err
+	}
+
+	// connect feed to that user
+	NewFeed := database.CreateFeedParams{uuid.New(), time.Now(),time.Now(),feedname,feedurl,user.ID}
+
+	feed, err := s.db.CreateFeed(context.Background(),NewFeed)
+	
+	// print new feed record
+	fmt.Println(feed)
+
+
+	return nil
+}
+
+func handleShowFeeds(s *state, cmd command) error {
+
+	Feeds, err := s.db.GetFeeds(context.Background())
+	if err != nil {
+		os.Exit(1)
+		return err
+	}
+
+	for _, feed := range Feeds {
+		fmt.Println(feed.Name)
+		username, err := s.db.GetFeedUser(context.Background(), feed.UserID)
+		if err != nil {
+			os.Exit(1)
+			return err
+		}
+		fmt.Println(username)
+	}
+	return nil
+}
+
+func handleFollowFeed(s *state, cmd command) error {
+	return nil
+}
+
+func handleShowFeeds(s *state, cmd command) error {
+	return nil
+}
+
+
+func fetchFeed(ctx context.Context, feedUrl string) (*RSSFeed, error) {
+
+	client := &http.Client{}
+
+	resp, err := client.Get(feedUrl)
+	if err != nil {
+	
+		return &RSSFeed{}, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", feedUrl, nil)
+	
+	if err != nil {
+	
+		return &RSSFeed{}, err
+	}
+
+	req.Header.Set("User-Agent","gator")
+	resp, err = client.Do(req)
+
+	fmt.Printf("%s\n",req.Header.Get("User-Agent"))
+
+	if err != nil {
+		return &RSSFeed{}, err
+	}
+
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+
+	rssFeed := RSSFeed{}
+
+	xml.Unmarshal(body, &rssFeed)
+	fmt.Println(rssFeed.Channel.Description)
+	rssFeed.Channel.Title = html.UnescapeString(rssFeed.Channel.Title)
+	rssFeed.Channel.Description = html.UnescapeString(rssFeed.Channel.Description)
+
+	for ind, _ := range rssFeed.Channel.Item {
+		rssFeed.Channel.Item[ind].Title = html.UnescapeString(rssFeed.Channel.Item[ind].Title)
+		rssFeed.Channel.Item[ind].Description = html.UnescapeString(rssFeed.Channel.Item[ind].Description)
+	}
+
+	return &rssFeed, nil
+
+}
+
 func main() {
 	cfg, err := config.Read()
 	dbURL := cfg.DBURL
@@ -135,6 +271,12 @@ func main() {
 	commandsInst.register("register", handleRegister)
 	commandsInst.register("reset", handleReset)
 	commandsInst.register("users", handleUsers)
+	commandsInst.register("agg", handleFeedGet)
+	commandsInst.register("addfeed", handleAddFeed)
+	commandsInst.register("feeds", handleShowFeeds)
+	commandsInst.register("follow", handleFollowFeed)
+	commandsInst.register("following", handleShowFollowing)
+
 
 	args := os.Args
 
@@ -159,5 +301,4 @@ func main() {
 		log.Fatalf("error reading config: %v", err)
 	}
 
-	//fmt.Printf("Read config again: %+v\n", cfg)
 }
