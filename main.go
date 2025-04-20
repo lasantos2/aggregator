@@ -198,8 +198,12 @@ func handleShowFeeds(s *state, cmd command) error {
 	return nil
 }
 
-func handleFollowFeed(ctx context.Context, feedUrl string) (*FollowFeed, error) {
-	return nil, nil
+func handleFollowFeed(s *state, cmd command) error {
+	return nil
+}
+
+func handleShowFeeds(s *state, cmd command) error {
+	return nil
 }
 
 
@@ -271,6 +275,7 @@ func main() {
 	commandsInst.register("addfeed", handleAddFeed)
 	commandsInst.register("feeds", handleShowFeeds)
 	commandsInst.register("follow", handleFollowFeed)
+	commandsInst.register("following", handleShowFollowing)
 
 
 	args := os.Args

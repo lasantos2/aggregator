@@ -35,3 +35,6 @@ SELECT * FROM feeds;
 
 -- name: GetFeedUser :one
 SELECT users.name FROM users JOIN feeds ON users.id = $1;
+
+-- name: CreateFeedFollow :many
+INSERT INTO feed_follows ();
