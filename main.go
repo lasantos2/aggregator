@@ -47,6 +47,18 @@ type RSSItem struct {
 	PubDate     string `xml:"pubDate"`
 }
 
+func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error ) func(*state, command) error {
+	// get current user from database
+
+	return func(s *state, cmd command) error {
+		user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
+		if err != nil {
+			return err
+		}
+		return handler(s, cmd, user)
+	}
+}
+
 func (c *commands) register(name string, f func(*state, command) error){
 	_, ok := c.commMap[name]
 	if ok { // command already exists
@@ -146,7 +158,7 @@ func handleFeedGet(s *state, cmd command) error {
 	return nil
 }
 
-func handleAddFeed(s *state, cmd command) error {
+func handleAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 2 {
 		os.Exit(1)
 		return errors.New("Arguments are [name] [url]")
@@ -154,13 +166,6 @@ func handleAddFeed(s *state, cmd command) error {
 
 	feedname := cmd.args[0]
 	feedurl := cmd.args[1]
-
-	// get current user from database
-	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
-	if err != nil {
-		os.Exit(1)
-		return err
-	}
 
 	// connect feed to that user
 	NewFeed := database.CreateFeedParams{uuid.New(), time.Now(),time.Now(),feedname,feedurl,user.ID}
@@ -209,7 +214,7 @@ func handleShowFeeds(s *state, cmd command) error {
 	return nil
 }
 
-func handleFollowFeed(s *state, cmd command) error {
+func handleFollowFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 1 {
 		os.Exit(1)
 		return errors.New("Arguments are command [url]")
@@ -217,11 +222,6 @@ func handleFollowFeed(s *state, cmd command) error {
 
 	url := cmd.args[0]
 
-	curr_user_db,err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
-	if err != nil {
-		os.Exit(1)
-		return errors.New("User not found")
-	}
 	feeds,err  := s.db.GetFeeds(context.Background())
 	if err != nil {
 		os.Exit(1)
@@ -242,7 +242,7 @@ func handleFollowFeed(s *state, cmd command) error {
 	time.Now(),
 	time.Now(),
 	foundFeed.ID,
-	curr_user_db.ID}
+	user.ID}
 
 	feedsFollowed, err := s.db.CreateFeedFollow(context.Background(), newFeedFollow)
 	if err != nil {
@@ -259,16 +259,16 @@ func handleFollowFeed(s *state, cmd command) error {
 	return nil
 }
 
-func handleShowFollowing(s *state, cmd command) error {
-	followedFeeds, err := s.db.GetFeedFollowsForUser(context.Background(), s.cfg.CurrentUserName)
-
+func handleShowFollowing(s *state, cmd command, user database.User) error {
+	followedFeeds, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)
 	if err != nil {
 		return err
 	}
 
+	fmt.Println(user.Name)
 	for _, feed := range followedFeeds {
 		fmt.Println(feed.FeedName)
-		fmt.Println(feed.UserName)
+		
 	}
 
 	return nil
@@ -335,10 +335,10 @@ func main() {
 	commandsInst.register("reset", handleReset)
 	commandsInst.register("users", handleUsers)
 	commandsInst.register("agg", handleFeedGet)
-	commandsInst.register("addfeed", handleAddFeed)
+	commandsInst.register("addfeed", middlewareLoggedIn(handleAddFeed))
 	commandsInst.register("feeds", handleShowFeeds)
-	commandsInst.register("follow", handleFollowFeed)
-	commandsInst.register("following", handleShowFollowing)
+	commandsInst.register("follow", middlewareLoggedIn(handleFollowFeed))
+	commandsInst.register("following", middlewareLoggedIn(handleShowFollowing))
 
 	args := os.Args
 
