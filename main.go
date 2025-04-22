@@ -274,6 +274,29 @@ func handleShowFollowing(s *state, cmd command, user database.User) error {
 	return nil
 }
 
+func handleUnfollow(s *state, cmd command, user database.User) error {
+
+	if len(cmd.args) != 1 {
+		return errors.New("Need URL to unfollow")
+	}
+
+	url := cmd.args[0]
+
+	deleteParams := database.DeleteFeedParams{}
+	deleteParams.ID = user.ID
+	deleteParams.Url = url
+
+
+	err := s.db.DeleteFeed(context.Background(), deleteParams)
+	if err != nil {
+		log.Fatalf("feed doesn't exist, or username not valid?")
+		return err
+	}
+
+	fmt.Println("Feed successfully unfollowed for ", user.Name)
+	return nil
+}
+
 func fetchFeed(ctx context.Context, feedUrl string) (*RSSFeed, error) {
 	client := &http.Client{}
 
@@ -339,6 +362,8 @@ func main() {
 	commandsInst.register("feeds", handleShowFeeds)
 	commandsInst.register("follow", middlewareLoggedIn(handleFollowFeed))
 	commandsInst.register("following", middlewareLoggedIn(handleShowFollowing))
+	commandsInst.register("unfollow", middlewareLoggedIn(handleUnfollow))
+
 
 	args := os.Args
 
