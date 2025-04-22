@@ -57,7 +57,6 @@ func (c *commands) register(name string, f func(*state, command) error){
 }
 
 func (c *commands) run(s *state, cmd command) error {
-
 	err := c.commMap[cmd.name](s, cmd)
 	if err != nil {
 		return err
@@ -67,7 +66,6 @@ func (c *commands) run(s *state, cmd command) error {
 }
 
 func handleReset(s *state, cmd command) error {
-
 	err := s.db.Reset(context.Background())
 	if err != nil {
 		os.Exit(1)
@@ -116,12 +114,10 @@ func handleRegister(s *state, cmd command) error {
 		return err
 	}
 
-	//fmt.Println("User has been set!")
 	return nil
 }
 
 func handleUsers(s *state, cmd command) error {
-
 	users, err := s.db.GetUsers(context.Background())
 	if err != nil {
 		return err
@@ -134,12 +130,11 @@ func handleUsers(s *state, cmd command) error {
 			fmt.Printf("* %s\n",user.Name)
 		}
 	}
+
 	return nil
 }
 
-
 func handleFeedGet(s *state, cmd command) error {
-
 	feedUrlString := "https://www.wagslane.dev/index.xml"
 	rssFeed, err := fetchFeed(context.Background(), feedUrlString)
 	if err != nil {
@@ -163,17 +158,33 @@ func handleAddFeed(s *state, cmd command) error {
 	// get current user from database
 	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
 	if err != nil {
+		os.Exit(1)
 		return err
 	}
 
 	// connect feed to that user
 	NewFeed := database.CreateFeedParams{uuid.New(), time.Now(),time.Now(),feedname,feedurl,user.ID}
-
 	feed, err := s.db.CreateFeed(context.Background(),NewFeed)
-	
-	// print new feed record
-	fmt.Println(feed)
+	if err != nil {
+		os.Exit(1)
+		return errors.New("Feed couldn't be created")
+	}
 
+	// Create feedFollow record for current user
+	newFeedFollow := database.CreateFeedFollowParams{
+		uuid.New(),
+		time.Now(),
+		time.Now(),
+		feed.ID,
+		user.ID}
+	
+	_, err = s.db.CreateFeedFollow(context.Background(), newFeedFollow)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+		return errors.New("Feed Follow Record not created")
+	}
+	
 
 	return nil
 }
@@ -199,16 +210,71 @@ func handleShowFeeds(s *state, cmd command) error {
 }
 
 func handleFollowFeed(s *state, cmd command) error {
+	if len(cmd.args) != 1 {
+		os.Exit(1)
+		return errors.New("Arguments are command [url]")
+	}
+
+	url := cmd.args[0]
+
+	curr_user_db,err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
+	if err != nil {
+		os.Exit(1)
+		return errors.New("User not found")
+	}
+	feeds,err  := s.db.GetFeeds(context.Background())
+	if err != nil {
+		os.Exit(1)
+		return errors.New("Feed not found")
+	}
+
+	foundFeed := database.Feed{}
+
+	for _, feed := range feeds {
+		if feed.Url == url {
+			foundFeed = feed
+			break;
+		}
+	}
+	
+	newFeedFollow := database.CreateFeedFollowParams{
+	uuid.New(),
+	time.Now(),
+	time.Now(),
+	foundFeed.ID,
+	curr_user_db.ID}
+
+	feedsFollowed, err := s.db.CreateFeedFollow(context.Background(), newFeedFollow)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+		return errors.New("No feed to follow")
+	}
+
+	for _, r := range feedsFollowed {
+		fmt.Println(r.FeedName)
+		fmt.Println(r.UserName)
+	}
+
 	return nil
 }
 
-func handleShowFeeds(s *state, cmd command) error {
+func handleShowFollowing(s *state, cmd command) error {
+	followedFeeds, err := s.db.GetFeedFollowsForUser(context.Background(), s.cfg.CurrentUserName)
+
+	if err != nil {
+		return err
+	}
+
+	for _, feed := range followedFeeds {
+		fmt.Println(feed.FeedName)
+		fmt.Println(feed.UserName)
+	}
+
 	return nil
 }
-
 
 func fetchFeed(ctx context.Context, feedUrl string) (*RSSFeed, error) {
-
 	client := &http.Client{}
 
 	resp, err := client.Get(feedUrl)
@@ -227,8 +293,6 @@ func fetchFeed(ctx context.Context, feedUrl string) (*RSSFeed, error) {
 	req.Header.Set("User-Agent","gator")
 	resp, err = client.Do(req)
 
-	fmt.Printf("%s\n",req.Header.Get("User-Agent"))
-
 	if err != nil {
 		return &RSSFeed{}, err
 	}
@@ -240,7 +304,6 @@ func fetchFeed(ctx context.Context, feedUrl string) (*RSSFeed, error) {
 	rssFeed := RSSFeed{}
 
 	xml.Unmarshal(body, &rssFeed)
-	fmt.Println(rssFeed.Channel.Description)
 	rssFeed.Channel.Title = html.UnescapeString(rssFeed.Channel.Title)
 	rssFeed.Channel.Description = html.UnescapeString(rssFeed.Channel.Description)
 
@@ -277,7 +340,6 @@ func main() {
 	commandsInst.register("follow", handleFollowFeed)
 	commandsInst.register("following", handleShowFollowing)
 
-
 	args := os.Args
 
 	if len(args) < 2 {
@@ -287,9 +349,7 @@ func main() {
 
 	commandName := args[1]
 	commandArgs := args[2:]
-
 	commandInst := command{commandName, commandArgs}
-
 	err = commandsInst.run(&stateInst, commandInst)
 	if err != nil{
 		fmt.Println(err)
