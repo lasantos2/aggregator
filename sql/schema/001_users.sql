@@ -10,7 +10,7 @@ CREATE TABLE feeds (
 id uuid PRIMARY KEY,
 created_at TIMESTAMP NOT NULL,
 updated_at TIMESTAMP NOT NULL,
-last_fetched_at TIMESTAMP,
+last_fetched_at TIMESTAMP NULL,
 name TEXT NOT NULL,
 url TEXT UNIQUE NOT NULL,
 user_id uuid UNIQUE NOT NULL,
@@ -25,6 +25,17 @@ feed_id uuid NOT NULL,
 user_id uuid NOT NULL,
 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
 FOREIGN KEY(feed_id) REFERENCES feeds(id) ON DELETE CASCADE
+);
+
+CREATE TABLE posts (
+id uuid PRIMARY KEY,
+created_at TIMESTAMP NOT NULL,
+updated_at TIMESTAMP NOT NULL,
+title TEXT NOT NULL,
+url TEXT UNIQUE NOT NULL,
+description TEXT,
+published_at TIMESTAMP NOT NULL
+feed_id uuid NOT NULL,
 );
 
 

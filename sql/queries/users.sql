@@ -76,4 +76,9 @@ WHERE id = $3;
 -- name: GetNextFeedToFetch :one
 SELECT * FROM feeds ORDER BY last_fetched_at ASC;
 
+-- name: CreatePost :exec
+
+
+
+-- name: GetPostsForUser :many
 
