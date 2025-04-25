@@ -15,6 +15,7 @@ import (
 	"github.com/lasantos2/aggregator/internal/config"
 	"github.com/google/uuid"
 	"html"
+	"reflect"
 )
 
 type state struct {
@@ -147,13 +148,30 @@ func handleUsers(s *state, cmd command) error {
 }
 
 func handleFeedGet(s *state, cmd command) error {
-	feedUrlString := "https://www.wagslane.dev/index.xml"
-	rssFeed, err := fetchFeed(context.Background(), feedUrlString)
+	// feedUrlString := "https://www.wagslane.dev/index.xml"
+	// rssFeed, err := fetchFeed(context.Background(), feedUrlString)
+	// if err != nil {
+	// 	return err
+	// }
+
+	//fmt.Println(rssFeed)
+	if len(cmd.args) != 1 {
+		return errors.New("Need time input: 1s, 1m, 1h")
+	}
+
+	timeBetweenReqs, err:= time.ParseDuration(cmd.args[0])
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(rssFeed)
+	ticker := time.NewTicker(timeBetweenReqs)
+
+	for ;; <- ticker.C {
+		scrapeFeeds(s)
+	}
+	
+
+
 
 	return nil
 }
@@ -211,6 +229,32 @@ func handleShowFeeds(s *state, cmd command) error {
 		}
 		fmt.Println(username)
 	}
+	return nil
+}
+
+func scrapeFeeds(s *state) error {
+
+	nextFeed, err := s.db.GetNextFeedToFetch(context.Background())
+	if err != nil {
+		os.Exit(1)
+		return err
+	}
+	lastFetched := sql.NullTime{time.Now(),true}
+
+	markFeed := database.MarkFeedFetchedParams{lastFetched,time.Now(),nextFeed.ID}
+
+	err = s.db.MarkFeedFetched(context.Background(), markFeed)
+	if err != nil {
+		os.Exit(1)
+		return err
+	}
+
+	feedValue := reflect.ValueOf(nextFeed)
+	types := feedValue.Type()
+	for i := 0 ; i < feedValue.NumField();i++ {
+		fmt.Println(types.Field(i).Index[0], types.Field(i).Name, feedValue.Field(i))	
+	}
+
 	return nil
 }
 

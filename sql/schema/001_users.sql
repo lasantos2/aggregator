@@ -10,7 +10,7 @@ CREATE TABLE feeds (
 id uuid PRIMARY KEY,
 created_at TIMESTAMP NOT NULL,
 updated_at TIMESTAMP NOT NULL,
-last_fetched_at TIMESTAMP NULL,
+last_fetched_at TIMESTAMP,
 name TEXT NOT NULL,
 url TEXT UNIQUE NOT NULL,
 user_id uuid UNIQUE NOT NULL,

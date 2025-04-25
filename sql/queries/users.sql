@@ -67,4 +67,13 @@ AND feed_follows.feed_id = feeds.id
 AND users.id = $1
 AND feeds.url = $2;
 
--- name: GetNextFeedFetched :one
+
+-- name: MarkFeedFetched :exec
+UPDATE feeds
+SET last_fetched_at = $1, updated_at = $2
+WHERE id = $3;
+
+-- name: GetNextFeedToFetch :one
+SELECT * FROM feeds ORDER BY last_fetched_at ASC;
+
+
