@@ -8,13 +8,9 @@ import (
 	"time"
 	"os"
 	"database/sql"
-	"io"
-	"net/http"
-	"encoding/xml"
 	"github.com/lasantos2/aggregator/internal/database"
 	"github.com/lasantos2/aggregator/internal/config"
 	"github.com/google/uuid"
-	"html"
 	"reflect"
 )
 
@@ -30,22 +26,6 @@ type command struct {
 
 type commands struct {
 	commMap map[string]func(*state, command) error
-}
-
-type RSSFeed struct {
-	Channel struct {
-		Title       string    `xml:"title"`
-		Link        string    `xml:"link"`
-		Description string    `xml:"description"`
-		Item        []RSSItem `xml:"item"`
-	} `xml:"channel"`
-}
-
-type RSSItem struct {
-	Title       string `xml:"title"`
-	Link        string `xml:"link"`
-	Description string `xml:"description"`
-	PubDate     string `xml:"pubDate"`
 }
 
 func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error ) func(*state, command) error {
@@ -330,48 +310,6 @@ func handleUnfollow(s *state, cmd command, user database.User) error {
 
 	fmt.Println("Feed successfully unfollowed for ", user.Name)
 	return nil
-}
-
-func fetchFeed(ctx context.Context, feedUrl string) (*RSSFeed, error) {
-	client := &http.Client{}
-
-	resp, err := client.Get(feedUrl)
-	if err != nil {
-	
-		return &RSSFeed{}, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "GET", feedUrl, nil)
-	
-	if err != nil {
-	
-		return &RSSFeed{}, err
-	}
-
-	req.Header.Set("User-Agent","gator")
-	resp, err = client.Do(req)
-
-	if err != nil {
-		return &RSSFeed{}, err
-	}
-
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-
-	rssFeed := RSSFeed{}
-
-	xml.Unmarshal(body, &rssFeed)
-	rssFeed.Channel.Title = html.UnescapeString(rssFeed.Channel.Title)
-	rssFeed.Channel.Description = html.UnescapeString(rssFeed.Channel.Description)
-
-	for ind, _ := range rssFeed.Channel.Item {
-		rssFeed.Channel.Item[ind].Title = html.UnescapeString(rssFeed.Channel.Item[ind].Title)
-		rssFeed.Channel.Item[ind].Description = html.UnescapeString(rssFeed.Channel.Item[ind].Description)
-	}
-
-	return &rssFeed, nil
-
 }
 
 func main() {
