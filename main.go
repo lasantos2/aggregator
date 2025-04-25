@@ -148,13 +148,7 @@ func handleUsers(s *state, cmd command) error {
 }
 
 func handleFeedGet(s *state, cmd command) error {
-	// feedUrlString := "https://www.wagslane.dev/index.xml"
-	// rssFeed, err := fetchFeed(context.Background(), feedUrlString)
-	// if err != nil {
-	// 	return err
-	// }
 
-	//fmt.Println(rssFeed)
 	if len(cmd.args) != 1 {
 		return errors.New("Need time input: 1s, 1m, 1h")
 	}
@@ -169,9 +163,6 @@ func handleFeedGet(s *state, cmd command) error {
 	for ;; <- ticker.C {
 		scrapeFeeds(s)
 	}
-	
-
-
 
 	return nil
 }
