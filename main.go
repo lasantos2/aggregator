@@ -19,54 +19,8 @@ type state struct {
 	cfg *config.Config
 }
 
-type command struct {
-	name string
-	args []string
-}
 
-type commands struct {
-	commMap map[string]func(*state, command) error
-}
 
-func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error ) func(*state, command) error {
-	// get current user from database
-
-	return func(s *state, cmd command) error {
-		user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
-		if err != nil {
-			return err
-		}
-		return handler(s, cmd, user)
-	}
-}
-
-func (c *commands) register(name string, f func(*state, command) error){
-	_, ok := c.commMap[name]
-	if ok { // command already exists
-		return
-	}
-
-	c.commMap[name] = f
-}
-
-func (c *commands) run(s *state, cmd command) error {
-	err := c.commMap[cmd.name](s, cmd)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func handleReset(s *state, cmd command) error {
-	err := s.db.Reset(context.Background())
-	if err != nil {
-		os.Exit(1)
-		return err
-	}
-
-	return nil
-}
 
 func handleLogin(s *state, cmd command) error {
 	if len(cmd.args) == 0 {
@@ -124,82 +78,6 @@ func handleUsers(s *state, cmd command) error {
 		}
 	}
 
-	return nil
-}
-
-func handleFeedGet(s *state, cmd command) error {
-
-	if len(cmd.args) != 1 {
-		return errors.New("Need time input: 1s, 1m, 1h")
-	}
-
-	timeBetweenReqs, err:= time.ParseDuration(cmd.args[0])
-	if err != nil {
-		return err
-	}
-
-	ticker := time.NewTicker(timeBetweenReqs)
-
-	for ;; <- ticker.C {
-		scrapeFeeds(s)
-	}
-
-	return nil
-}
-
-func handleAddFeed(s *state, cmd command, user database.User) error {
-	if len(cmd.args) != 2 {
-		os.Exit(1)
-		return errors.New("Arguments are [name] [url]")
-	}
-
-	feedname := cmd.args[0]
-	feedurl := cmd.args[1]
-
-	// connect feed to that user
-	NewFeed := database.CreateFeedParams{uuid.New(), time.Now(),time.Now(),feedname,feedurl,user.ID}
-	feed, err := s.db.CreateFeed(context.Background(),NewFeed)
-	if err != nil {
-		os.Exit(1)
-		return errors.New("Feed couldn't be created")
-	}
-
-	// Create feedFollow record for current user
-	newFeedFollow := database.CreateFeedFollowParams{
-		uuid.New(),
-		time.Now(),
-		time.Now(),
-		feed.ID,
-		user.ID}
-	
-	_, err = s.db.CreateFeedFollow(context.Background(), newFeedFollow)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-		return errors.New("Feed Follow Record not created")
-	}
-	
-
-	return nil
-}
-
-func handleShowFeeds(s *state, cmd command) error {
-
-	Feeds, err := s.db.GetFeeds(context.Background())
-	if err != nil {
-		os.Exit(1)
-		return err
-	}
-
-	for _, feed := range Feeds {
-		fmt.Println(feed.Name)
-		username, err := s.db.GetFeedUser(context.Background(), feed.UserID)
-		if err != nil {
-			os.Exit(1)
-			return err
-		}
-		fmt.Println(username)
-	}
 	return nil
 }
 
@@ -359,4 +237,16 @@ func main() {
 		log.Fatalf("error reading config: %v", err)
 	}
 
+}
+
+func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error ) func(*state, command) error {
+	// get current user from database
+
+	return func(s *state, cmd command) error {
+		user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
+		if err != nil {
+			return err
+		}
+		return handler(s, cmd, user)
+	}
 }
